@@ -1,0 +1,264 @@
+class Table {
+   status {
+      Available {
+         startOrder() / {
+            new Order(new java.sql.Date(Calendar.getInstance().getTime().getTime()), new java.sql.Time(Calendar.getInstance().getTime().getTime()), this.getRestoApp(), this);
+         } -> NothingOrdered;
+         addToOrder(Order o) / {
+            o.addTable(this);
+         } -> NothingOrdered; 
+      }
+      NothingOrdered {
+      
+         orderItem(int quantity, Order o, Seat s, PricedMenuItem i) [quantityNotNegative(quantity)] / {
+            // create a new order item with the provided quantity, order, seat, and priced menu item
+            //null checks
+            new OrderItem(quantity, i, o, s);
+            
+         } -> Ordered; 
+         
+         addToOrderItem(OrderItem i, Seat s) / {
+            // add provided seat to provided order item unless seat has already been added, in which case nothing needs to be done
+            //null checks
+            List<Seat> seats = i.getSeats();
+            
+            if (!seats.contains(s)) {
+            
+            		i.addSeat(s);
+            		
+            	}	
+            
+         } -> Ordered;
+         
+         endOrder(Order o) / {
+            if (!o.removeTable(this)) {
+               if (o.numberOfTables() == 1) {
+                  o.delete();
+               }
+            }
+         } -> Available;
+      }
+      Ordered {
+         orderItem(int quantity, Order o, Seat s, PricedMenuItem i) [quantityNotNegative(quantity)] / {
+            // create a new order item with the provided quantity, order, seat, and priced menu item
+            //null checks
+            new OrderItem(quantity, i, o, s);
+            
+         } -> Ordered; 
+         
+         addToOrderItem(OrderItem i, Seat s) / {
+            // add provided seat to provided order item unless seat has already been added, in which case nothing needs to be done
+            //null checks
+            
+            List<Seat> seatsTwo = i.getSeats();
+            
+            if (!seatsTwo.contains(s)) {
+            
+            		i.addSeat(s);
+            		
+            	}
+         
+         } -> Ordered;
+         
+         cancelOrderItem(OrderItem i) [iIsLastItem(i)] / {
+            // delete order item
+            //null checks
+            i.delete();
+            
+         } -> NothingOrdered;
+         
+         cancelOrderItem(OrderItem i) [!iIsLastItem(i)] / {
+            // delete order item
+            //null checks
+            i.delete();
+    
+            
+         } -> Ordered;
+         
+         cancelOrder() / {
+            // delete all order items of the table
+            List<Order> orders = this.getOrders();
+	   	    int size = orders.size();
+	   		
+	   		Order currentOrder = orders.get(size - 1);
+	   		
+	   		List<OrderItem> items = new ArrayList<OrderItem>(currentOrder.getOrderItems());
+	   		
+	   		for (OrderItem i: items) {
+	   			
+	   			i.delete();
+	   		
+	   		}
+            
+         } -> NothingOrdered;
+         
+         billForSeat(Order o, Seat s) / {
+            // create a new bill with the provided order and seat; if the provided seat is already assigned to
+            // another bill for the current order, then the seat is first removed from the other bill and if no seats
+            // are left for the bill, the bill is deleted
+            RestoApp r = this.getRestoApp();
+            
+            if (o.hasBills()) {
+            		
+            		List<Bill> bills = o.getBills();
+            		
+            		for (Bill b : bills) {
+            		
+            			List<Seat> seats = b.getIssuedForSeats();
+            			
+            			if (seats.contains(s)) {
+            			
+            				if (b.getIssuedForSeats().size() == 1) {
+		            		
+		            			b.delete();
+		            		
+		            		} else {
+            			
+        						b.removeIssuedForSeat(s);
+            				
+		            		}
+            			
+            			}
+            		
+            		}
+            		
+            }
+            
+           	new Bill(o, r, s); 
+            
+         } -> Ordered;
+         
+         addToBill(Bill b, Seat s) / {
+            // add provided seat to provided bill unless seat has already been added, in which case nothing needs
+            // to be done; if the provided seat is already assigned to another bill for the current order, then the
+            // seat is first removed from the other bill and if no seats are left for the bill, the bill is deleted
+            List<Seat> seats = b.getIssuedForSeats();
+            
+            if (!seats.contains(s)) {
+            
+	            Table table = s.getTable();
+	            
+	            List<Order> orders = table.getOrders();
+	            
+	            int size = orders.size();
+	            
+	            Order o = orders.get(size - 1);
+	            
+	            if (o.hasBills()) {
+	            		
+	            		List<Bill> bills = o.getBills();
+	            		
+	            		for (Bill bill : bills) {
+	            		
+	            			List<Seat> seatsForBill = bill.getIssuedForSeats();
+	            			
+	            			if (seatsForBill.contains(s)) {
+	            				
+			            		if (b.getIssuedForSeats().size() == 1) {
+			            		
+			            			bill.delete();
+			            		
+			            		} else {
+			            			            			
+	            					bill.removeIssuedForSeat(s);
+			            		
+			            		}
+	            			
+	            			}
+	            		
+	            		}
+	            		
+	            }
+	            
+	            b.addIssuedForSeat(s);
+	            
+	     	}       
+            
+         } -> Ordered;
+         
+         endOrder(Order o) [allSeatsBilled()] / {
+         } -> Available;
+      }
+   }
+   
+   // check that the provided quantity is an integer greater than 0
+	private boolean quantityNotNegative(int quantity) {
+		// DONE
+		if (quantity <= 0)
+		{
+		return false;
+		}
+		else
+		{
+		return true;  
+	 	}
+   }
+
+   // check that the provided order item is the last item of the current order of the table
+   private boolean iIsLastItem(OrderItem i) {
+      // DONE
+	Order currentOrder = i.getOrder();
+	List<OrderItem> items = currentOrder.getOrderItems();
+	if (items.size() == 1 && items.get(0) == i)
+	{  
+		return true;	  
+	}
+	return false;
+   }
+
+   // check that all seats of the table have a bill that belongs to the current order of the table 
+   private boolean allSeatsBilled() {
+      // DONE 
+          	  
+	   List<Order> orders = this.getOrders();
+	   int size = orders.size();
+	   if (size == 0)
+	   {
+		   return false;
+	   }
+	   
+	   Order currentOrder = orders.get(size - 1);
+	   List<Seat> allSeats = this.getCurrentSeats();
+	   List<Seat> seatsWithBills = new ArrayList<Seat>();
+	   for (Seat s : allSeats)
+	   {
+		   seatsWithBills.add(s);  
+	   }
+		   
+	   List<Bill> bills = currentOrder.getBills();  
+	   List<OrderItem> items = currentOrder.getOrderItems(); 
+	   for (OrderItem i : items)
+	   {   
+		   List<Seat> seats = i.getSeats();   
+		   for (Seat s : allSeats)
+		   {
+			   if (!seats.contains(s))
+			   {
+				   seatsWithBills.remove(s);
+			   }
+		   }		      
+	   }	 
+	   
+	   boolean atLeastOne = false;
+	   for (Seat seat : seatsWithBills)
+	   {   
+		   List<Bill> billsOfSeats = seat.getBills();
+		   for (Bill bill : bills)
+		   {  
+			   if (billsOfSeats.contains(bill))
+			   {	   
+				   atLeastOne = true;   
+			   }  
+		   }
+		   
+		   if (!atLeastOne)
+		   {
+			   return false;
+		   }
+		   
+		   atLeastOne = false;   
+	   }  
+	   
+	   return true;
+   }
+}
